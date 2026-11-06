@@ -1,0 +1,78 @@
+name: Build GhostSender
+
+# Builds native GhostSender binaries for Windows, macOS, and Linux.
+# Runs on every push/PR, and attaches binaries to a GitHub Release when
+# you push a tag like v1.0.0.
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:   # lets you run it manually from the Actions tab
+
+permissions:
+  contents: write      # needed to publish releases
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: GhostSender-windows
+          - os: macos-latest
+            artifact: GhostSender-macos
+          - os: ubuntu-latest
+            artifact: GhostSender-linux
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Linux Tk dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      - name: Build binary
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name GhostSender
+          --hidden-import ghostsender
+          ghostsender_gui.py
+
+      - name: Package (zip the result)
+        shell: bash
+        run: |
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a ../${{ matrix.artifact }}.zip GhostSender.exe
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            # --windowed produces a .app bundle on macOS
+            zip -r ../${{ matrix.artifact }}.zip GhostSender.app
+          else
+            zip ../${{ matrix.artifact }}.zip GhostSender
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
+
+      - name: Attach to Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}.zip

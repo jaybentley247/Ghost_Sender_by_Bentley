@@ -1,0 +1,8 @@
+Hi {name},
+
+This is a test message sent with GhostSender.
+
+You're receiving it at {email}.
+
+Cheers,
+The Team
