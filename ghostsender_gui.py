@@ -25,6 +25,10 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 import ghostsender as backend
 
+APP_NAME = "GhostSender"
+APP_VERSION = "1.0.0"
+APP_VENDOR = "Bentley Tech Innovations"
+
 
 # --------------------------------------------------------------------------- #
 # Provider presets: (host, port, help text)
@@ -65,8 +69,9 @@ PROVIDERS: dict[str, dict] = {
 class GhostSenderApp(ttk.Frame):
     def __init__(self, master: tk.Tk):
         super().__init__(master, padding=12)
-        master.title("GhostSender")
-        master.minsize(640, 680)
+        self.master_window = master
+        master.title(f"{APP_NAME} — {APP_VENDOR}")
+        master.minsize(640, 720)
         self.grid(sticky="nsew")
         master.columnconfigure(0, weight=1)
         master.rowconfigure(0, weight=1)
@@ -82,6 +87,18 @@ class GhostSenderApp(ttk.Frame):
     def _build_ui(self) -> None:
         self.columnconfigure(1, weight=1)
         row = 0
+
+        # --- Branded header --------------------------------------------- #
+        header = ttk.Frame(self)
+        header.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(0, 8))
+        header.columnconfigure(0, weight=1)
+        ttk.Label(header, text=APP_NAME,
+                  font=("Segoe UI", 18, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Label(header, text=f"by {APP_VENDOR}",
+                  foreground="#666").grid(row=1, column=0, sticky="w")
+        ttk.Button(header, text="About",
+                   command=self._show_about).grid(row=0, column=1, rowspan=2, sticky="e")
+        row += 1
 
         # --- Account section -------------------------------------------- #
         acct = ttk.LabelFrame(self, text="Email account", padding=10)
@@ -198,6 +215,22 @@ class GhostSenderApp(ttk.Frame):
                                                   state="disabled", background="#111",
                                                   foreground="#ddd")
         self.log_text.grid(row=0, column=0, sticky="nsew")
+        row += 1
+
+        # --- Footer credit ---------------------------------------------- #
+        ttk.Label(self,
+                  text=f"{APP_NAME} v{APP_VERSION}  •  © {APP_VENDOR}",
+                  foreground="#888", anchor="center").grid(
+            row=row, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+
+    def _show_about(self) -> None:
+        messagebox.showinfo(
+            f"About {APP_NAME}",
+            f"{APP_NAME}  v{APP_VERSION}\n"
+            f"Created by {APP_VENDOR}\n\n"
+            "Send email through your own authenticated SMTP account\n"
+            "(Gmail, Outlook/Office 365, Yahoo, iCloud, or custom).\n\n"
+            "Use only for mail you are authorized to send.")
 
     # -------------------------------------------------------------- helpers --
     def _on_provider_change(self) -> None:
