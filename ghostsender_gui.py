@@ -33,35 +33,41 @@ APP_VENDOR = "Bentley Tech Innovations"
 # --------------------------------------------------------------------------- #
 # Provider presets: (host, port, help text)
 # --------------------------------------------------------------------------- #
+# Encryption presets and the port each one uses.
+SECURITY_PORTS: dict[str, int] = {
+    "STARTTLS": 587,
+    "SSL/TLS": 465,
+}
+
 PROVIDERS: dict[str, dict] = {
     "Gmail": {
         "host": "smtp.gmail.com",
-        "port": 587,
+        "security": "STARTTLS",
         "note": "Use a 16-char App Password (Google Account - Security - "
                 "2-Step Verification - App passwords). Your normal password "
                 "will not work.",
     },
     "Outlook / Office 365": {
         "host": "smtp.office365.com",
-        "port": 587,
+        "security": "STARTTLS",
         "note": "Use your Microsoft 365 / Outlook.com address and an app "
                 "password if your account has 2FA enabled.",
     },
     "Yahoo Mail": {
         "host": "smtp.mail.yahoo.com",
-        "port": 587,
+        "security": "SSL/TLS",
         "note": "Generate an app password in Yahoo Account Security.",
     },
     "iCloud Mail": {
         "host": "smtp.mail.me.com",
-        "port": 587,
+        "security": "STARTTLS",
         "note": "Use an app-specific password from appleid.apple.com.",
     },
     "Custom": {
         "host": "",
-        "port": 587,
+        "security": "STARTTLS",
         "note": "Enter your provider's SMTP host and port manually. "
-                "Port 465 uses SSL; 587 uses STARTTLS.",
+                "SSL/TLS uses port 465; STARTTLS uses 587.",
     },
 }
 
@@ -130,23 +136,32 @@ class GhostSenderApp(ttk.Frame):
         self.port_entry.grid(row=2, column=3, sticky="w", pady=3)
         acct.columnconfigure(3, weight=0)
 
-        ttk.Label(acct, text="Email / login:").grid(row=3, column=0, sticky="w", pady=3)
+        ttk.Label(acct, text="Encryption:").grid(row=3, column=0, sticky="w", pady=3)
+        self.security_var = tk.StringVar(value="STARTTLS")
+        self.security_cb = ttk.Combobox(
+            acct, textvariable=self.security_var, state="readonly", width=12,
+            values=list(SECURITY_PORTS.keys()))
+        self.security_cb.grid(row=3, column=1, sticky="w", pady=3)
+        self.security_cb.bind("<<ComboboxSelected>>",
+                              lambda e: self._on_security_change())
+
+        ttk.Label(acct, text="Email / login:").grid(row=4, column=0, sticky="w", pady=3)
         self.user_var = tk.StringVar()
         ttk.Entry(acct, textvariable=self.user_var).grid(
-            row=3, column=1, columnspan=3, sticky="ew", pady=3)
+            row=4, column=1, columnspan=3, sticky="ew", pady=3)
 
-        ttk.Label(acct, text="App password:").grid(row=4, column=0, sticky="w", pady=3)
+        ttk.Label(acct, text="App password:").grid(row=5, column=0, sticky="w", pady=3)
         self.pass_var = tk.StringVar()
         self.pass_entry = ttk.Entry(acct, textvariable=self.pass_var, show="•")
-        self.pass_entry.grid(row=4, column=1, columnspan=2, sticky="ew", pady=3)
+        self.pass_entry.grid(row=5, column=1, columnspan=2, sticky="ew", pady=3)
         self.show_pass = tk.BooleanVar(value=False)
         ttk.Checkbutton(acct, text="Show", variable=self.show_pass,
-                        command=self._toggle_pass).grid(row=4, column=3, sticky="w")
+                        command=self._toggle_pass).grid(row=5, column=3, sticky="w")
 
-        ttk.Label(acct, text="From name:").grid(row=5, column=0, sticky="w", pady=3)
+        ttk.Label(acct, text="From name:").grid(row=6, column=0, sticky="w", pady=3)
         self.fromname_var = tk.StringVar()
         ttk.Entry(acct, textvariable=self.fromname_var).grid(
-            row=5, column=1, columnspan=3, sticky="ew", pady=3)
+            row=6, column=1, columnspan=3, sticky="ew", pady=3)
 
         # --- Message section -------------------------------------------- #
         msg = ttk.LabelFrame(self, text="Message", padding=10)
@@ -237,11 +252,23 @@ class GhostSenderApp(ttk.Frame):
         preset = PROVIDERS[self.provider_var.get()]
         is_custom = self.provider_var.get() == "Custom"
         self.host_var.set(preset["host"])
-        self.port_var.set(str(preset["port"]))
         self.note_var.set(preset["note"])
+        # Set the provider's default encryption, which drives the port.
+        self.security_var.set(preset["security"])
+        self._apply_port()
         state = "normal" if is_custom else "readonly"
         self.host_entry.configure(state=state)
-        self.port_entry.configure(state=state)
+        # Port is always derived from the encryption choice, so keep it
+        # read-only (STARTTLS -> 587, SSL/TLS -> 465).
+        self.port_entry.configure(state="readonly")
+
+    def _on_security_change(self) -> None:
+        self._apply_port()
+
+    def _apply_port(self) -> None:
+        """Set the port from the selected encryption type."""
+        port = SECURITY_PORTS.get(self.security_var.get(), 587)
+        self.port_var.set(str(port))
 
     def _toggle_pass(self) -> None:
         self.pass_entry.configure(show="" if self.show_pass.get() else "•")
