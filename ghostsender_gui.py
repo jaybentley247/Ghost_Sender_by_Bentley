@@ -87,6 +87,7 @@ class GhostSenderApp(ttk.Frame):
 
         self._build_ui()
         self._on_provider_change()
+        self._on_rec_mode()
         self.after(100, self._drain_log)
 
     # ------------------------------------------------------------------ UI --
@@ -170,12 +171,41 @@ class GhostSenderApp(ttk.Frame):
         self.rowconfigure(row, weight=1)
         row += 1
 
-        ttk.Label(msg, text="Recipients file:").grid(row=0, column=0, sticky="w", pady=3)
+        # --- Recipients: choose file upload OR pasted addresses --------- #
+        rec = ttk.LabelFrame(msg, text="Recipients", padding=8)
+        rec.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 6))
+        rec.columnconfigure(1, weight=1)
+
+        self.rec_mode = tk.StringVar(value="file")
+        mode_bar = ttk.Frame(rec)
+        mode_bar.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 4))
+        ttk.Radiobutton(mode_bar, text="Upload file (CSV / TXT)", value="file",
+                        variable=self.rec_mode,
+                        command=self._on_rec_mode).pack(side="left")
+        ttk.Radiobutton(mode_bar, text="Paste addresses", value="paste",
+                        variable=self.rec_mode,
+                        command=self._on_rec_mode).pack(side="left", padx=(14, 0))
+
+        # File row
+        self.rec_file_row = ttk.Frame(rec)
+        self.rec_file_row.grid(row=1, column=0, columnspan=3, sticky="ew")
+        self.rec_file_row.columnconfigure(0, weight=1)
         self.recipients_var = tk.StringVar()
-        ttk.Entry(msg, textvariable=self.recipients_var).grid(
-            row=0, column=1, sticky="ew", pady=3)
-        ttk.Button(msg, text="Browse...",
-                   command=self._pick_recipients).grid(row=0, column=2, padx=(6, 0))
+        ttk.Entry(self.rec_file_row, textvariable=self.recipients_var).grid(
+            row=0, column=0, sticky="ew", pady=3)
+        ttk.Button(self.rec_file_row, text="Browse...",
+                   command=self._pick_recipients).grid(row=0, column=1, padx=(6, 0))
+
+        # Paste row
+        self.rec_paste_row = ttk.Frame(rec)
+        self.rec_paste_row.grid(row=1, column=0, columnspan=3, sticky="ew")
+        self.rec_paste_row.columnconfigure(0, weight=1)
+        ttk.Label(self.rec_paste_row,
+                  text="Separate addresses with commas, spaces, or new lines:",
+                  foreground="#555").grid(row=0, column=0, sticky="w")
+        self.paste_text = scrolledtext.ScrolledText(self.rec_paste_row, height=4,
+                                                    wrap="word")
+        self.paste_text.grid(row=1, column=0, sticky="ew", pady=(2, 3))
 
         ttk.Label(msg, text="Subject:").grid(row=1, column=0, sticky="w", pady=3)
         self.subject_var = tk.StringVar()
@@ -273,6 +303,21 @@ class GhostSenderApp(ttk.Frame):
     def _toggle_pass(self) -> None:
         self.pass_entry.configure(show="" if self.show_pass.get() else "•")
 
+    def _on_rec_mode(self) -> None:
+        """Show the file picker or the paste box depending on the chosen mode."""
+        if self.rec_mode.get() == "paste":
+            self.rec_file_row.grid_remove()
+            self.rec_paste_row.grid()
+        else:
+            self.rec_paste_row.grid_remove()
+            self.rec_file_row.grid()
+
+    def _gather_recipients(self) -> list:
+        """Build the recipient list from whichever input mode is active."""
+        if self.rec_mode.get() == "paste":
+            return backend.parse_recipients_text(self.paste_text.get("1.0", "end-1c"))
+        return backend.load_recipients_or_raise(self.recipients_var.get().strip())
+
     def _pick_recipients(self) -> None:
         path = filedialog.askopenfilename(
             title="Select recipients file",
@@ -333,7 +378,7 @@ class GhostSenderApp(ttk.Frame):
                         "GhostSender",
                         "Host, email/login and app password are required to send.")
                     return
-            recipients = backend.load_recipients_or_raise(self.recipients_var.get().strip())
+            recipients = self._gather_recipients()
         except Exception as e:
             messagebox.showerror("GhostSender", str(e))
             return
@@ -351,7 +396,7 @@ class GhostSenderApp(ttk.Frame):
             messagebox.showerror("GhostSender", "Subject and body are required.")
             return
         if not recipients:
-            messagebox.showerror("GhostSender", "No recipients found in the file.")
+            messagebox.showerror("GhostSender", "No recipients found.")
             return
 
         if not dry_run:

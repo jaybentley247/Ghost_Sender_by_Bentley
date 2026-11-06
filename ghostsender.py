@@ -97,6 +97,36 @@ class Recipient:
     fields: dict[str, str]
 
 
+def parse_recipients_text(text: str) -> list[Recipient]:
+    """
+    Parse pasted addresses separated by commas, semicolons, or whitespace
+    (including newlines). Duplicates are dropped, order preserved.
+    """
+    import re
+    if not text or not text.strip():
+        raise ValueError("Paste at least one email address.")
+    parts = [p.strip() for p in re.split(r"[,;\s]+", text) if p.strip()]
+    out: list[Recipient] = []
+    seen: set[str] = set()
+    bad: list[str] = []
+    for addr in parts:
+        if "@" not in addr or addr.startswith("@") or addr.endswith("@"):
+            bad.append(addr)
+            continue
+        key = addr.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(Recipient(email=addr, fields={}))
+    if bad:
+        raise ValueError("These don't look like email addresses:\n  "
+                         + ", ".join(bad[:10])
+                         + ("  ..." if len(bad) > 10 else ""))
+    if not out:
+        raise ValueError("No valid email addresses found.")
+    return out
+
+
 def load_recipients_or_raise(path: str) -> list[Recipient]:
     """Like load_recipients, but raises ValueError (GUI-friendly, no SystemExit)."""
     if not path:
